@@ -1,0 +1,481 @@
+---
+title: "Seminário - Modelos Lineares"
+author: "Frederico, Gabriel, Rodrigo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(psych)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+
+# Banco de Dados
+dados = read.csv("mental_health_diagnosis_treatment_.csv")
+
+# Transformação das variãveis categóricas para fator
+dados$Diagnosis = as.factor(dados$Diagnosis)
+dados$Therapy.Type = as.factor(dados$Therapy.Type)
+dados$Gender = as.factor(dados$Gender)
+dados$Medication = as.factor(dados$Medication)
+dados$AI.Detected.Emotional.State = as.factor(dados$AI.Detected.Emotional.State)
+
+# glimpse(dados)
+```
+
+# Banco de Dados
+
+O banco de dados "Mental Health Diagnosis and Treatment Monitoring" foi obtido na plataforma Kaggle e contém as observações de 500 pacientes acerca de diagnósticos em saúde mental, planos de tratamento e desfechos, além de outras informações.
+
+O banco contém as seguintes variáveis:
+```{r}
+names(dados)
+```
+
+# Objetivo
+
+Nosso objetivo é explicar a aderência ao plano de tratamento psicológico (expressa em termos de porcentagem de aderência) por meio das variáveis idade, diagnóstico e severidade dos sintomas.
+
+
+# Estatísticas Descritivas
+
+```{r}
+#Idade
+psych::describe(dados$Age) #Descritivas
+
+ggplot(dados, aes(x = Age)) +
+  geom_histogram(binwidth = 5, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Idade dos Pacientes",
+       x = "Idade",
+       y = "Número de observações") +
+  theme_minimal()
+
+#Diagnóstico
+table(dados$Diagnosis) #Descritivas
+
+ggplot(dados, aes(x = Diagnosis)) +
+  geom_bar(fill = "skyblue", color = "black", alpha = 0.8) +
+  labs(title = "Diagnósticos dos pacientes",
+       x = "Diagnóstico",
+       y = "Número de observações") +
+  theme_minimal()
+
+# Severidade dos Sintomas
+psych::describe(dados$Symptom.Severity..1.10.) #Descritivas
+
+ggplot(dados, aes(x = Symptom.Severity..1.10.)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black", alpha = 0.7) +
+  labs(title = "Severidade dos Sintomas (1 - 10)",
+       x = "Severidade",
+       y = "Número de observações") +
+  theme_minimal()
+
+# Aderência ao tratamento
+psych::describe(dados$Adherence.to.Treatment....) #Descritivas
+
+ggplot(dados, aes(x = Adherence.to.Treatment....)) +
+  geom_histogram(binwidth = 5, fill = "green", color = "black", alpha = 0.7) +
+  labs(title = "Aderência dos pacientes ao plano de tratamento (%)",
+       x = "Aderência",
+       y = "Número de observações") +
+  theme_minimal()
+```
+
+```{r}
+library(GGally)
+
+GGally::ggpairs(dados %>% dplyr::select(Age, Diagnosis, Symptom.Severity..1.10., Adherence.to.Treatment....))
+```
+
+```{r}
+#Gráficos
+ggplot(dados, aes(x = Age, y = Adherence.to.Treatment....)) +
+  geom_point(color = "cyan", size = 2, alpha = 0.7) +
+  labs(title = "Idade vs Aderência",
+       x = "Idade",
+       y = "Aderência") +
+  theme_minimal()
+
+ggplot(dados, aes(x = Symptom.Severity..1.10., y = Adherence.to.Treatment....)) +
+  geom_point(color = "red", size = 2, alpha = 0.7) +
+  labs(title = "Severidade dos Sintomas vs Aderência",
+       x = "Severidade dos Sintomas",
+       y = "Aderência") +
+  theme_minimal()
+
+ggplot(dados, aes(x = Diagnosis, y = Adherence.to.Treatment....)) +
+  geom_boxplot(fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(title = "Aderência ao plano de tratamento por categorias diagnósticas",
+       x = "Diagnósticos",
+       y = "Aderência") +
+  theme_minimal()
+
+ggplot(dados, aes(x = Age, y = Symptom.Severity..1.10.)) +
+  geom_point(color = "purple", size = 2, alpha = 0.7) +
+  labs(title = "Idade vs Severidade dos sintomas",
+       x = "Idade",
+       y = "Severidade dos sintomas") +
+  theme_minimal()
+```
+
+
+
+# Modelo de Regressão
+
+```{r}
+modelo = lm(Adherence.to.Treatment.... ~ Age + Diagnosis + Symptom.Severity..1.10.,data = dados)
+
+summary(modelo)
+```
+Não foram indetificadas variáveis significativas entre as preditoras para a variável aderência. Além disso, o coeficiente $R^2$ negativo indica que o modelo não é adequado, podendo gerar resultados inferiores a uma previsão baseada unicamente na média.
+
+
+# Modelo de Regressão 2
+
+Em uma segunda proposta de modelo, tentou-se buscar outras variáveis disponíveis no dataset além daquelas inicialmente previstas. Para isso, foram consideradas as variáveis Gênero, Medicação, Tipo de Terapia, Duração do Tratamento (semanas), Atividade Física (horas por semana), Nível de Stress (1-10), Qualidade do Sono (1-10), Estado Emocional.
+
+Outra medida adotada foi considerar apenas os registros que possuíam progresso no tratamento (1-10) com valores maiores ou iguais a 9, ou seja, tratamentos que estavam se aproximando do seu final. A razão para que essa medida fosse adotada foi descartar registros onde o tratamento recém havia sido iniciado e que, portanto, poderia ainda não ter gerado o resultados para o paciente.
+
+```{r}
+dados_filtrados <- dados %>% filter(Treatment.Progress..1.10.>=9)
+
+modelo = lm(Adherence.to.Treatment.... ~ 1
+            + Gender
+            + Age
+            + Diagnosis
+            + Medication
+            + Symptom.Severity..1.10.
+            + Therapy.Type
+            + Treatment.Duration..weeks.
+            + Physical.Activity..hrs.week.
+            + Mood.Score..1.10.
+            + Stress.Level..1.10.
+            + Sleep.Quality..1.10.
+            + AI.Detected.Emotional.State
+            + Therapy.Type*Treatment.Duration..weeks.
+            , data = dados_filtrados)
+
+summary(modelo)
+```
+
+
+
+```{r, fig.width=15, fig.height=12}
+library(GGally)
+
+GGally::ggpairs(dados_filtrados %>% dplyr::select(Gender, Age, Diagnosis, Symptom.Severity..1.10., Therapy.Type, Treatment.Duration..weeks., Treatment.Progress..1.10., Adherence.to.Treatment....))
+```
+
+
+# Seleção de Modelos
+
+Antes de prosseguir com a execução dos algoritmos de seleção de modelos forward e stepwise, conjunto de dados foi dividido em conjuntos de treinamento (80%) e teste (20%).
+
+```{r}
+# Dividir os dados manualmente em treino (80%) e teste (20%)
+set.seed(42) # Para reprodutibilidade
+indices_treino <- sample(1:nrow(dados_filtrados), size = 0.8 * nrow(dados_filtrados))
+treino <- dados[indices_treino, ]
+teste <- dados[-indices_treino, ]
+```
+
+
+## Método Forward
+
+Nesse método o modelo começa com nenhuma covariável, a cada passo o algoritmo decide se determinada preditora será adicionada ao modelo.
+
+
+```{r} 
+
+min_model <- lm(Adherence.to.Treatment.... ~ 1, data = dados_filtrados)
+
+reg_forward <- step(
+  object = min_model,
+  direction = "forward",
+  scope = formula(modelo),
+  k = 2
+)
+
+```
+
+```{r}
+summary(reg_forward)
+```
+
+```{r}
+
+# predição na amostra de teste
+preditoras_selecionadas_forward <- c(names(reg_forward$model))
+predicao_forward_amostra_teste <- predict(reg_forward, newdata = data.frame(1, teste[,preditoras_selecionadas_forward]))
+
+# medida quadrática do erro de predição
+erro_forward <- mean((teste[,'Adherence.to.Treatment....'] - predicao_forward_amostra_teste)^2)
+
+print(paste('RMSE (forward):', erro_forward))
+```
+
+
+
+## Método Stepwise
+
+```{r}
+max_model <- modelo
+
+reg_stepwise <- step(
+  object = max_model,
+  direction = "both",
+  k = 2
+)
+```
+
+```{r}
+summary(reg_stepwise)
+```
+```{r}
+
+# predição na amostra de teste
+preditoras_selecionadas_stepwise <- c(names(reg_stepwise$model))
+predicao_stepwise_amostra_teste <- predict(reg_stepwise, newdata = data.frame(1, teste[,preditoras_selecionadas_stepwise]))
+
+# medida quadrática do erro de predição
+erro_stepwise <- mean((teste[,'Adherence.to.Treatment....'] - predicao_stepwise_amostra_teste)^2)
+
+print(paste('RMSE (forward):', erro_stepwise))
+```
+
+
+# Multicolinearidade
+
+```{r}
+# Deste ponto em diante, o modelo atribuído a model será utilizado
+model <- reg_stepwise
+```
+
+Para avaliarmos se há presença de multicolinearidade, iremos utilizar os gráficos abaixo, que nos mostram a correlação entre as nossas variáveis preditoras contínuas e o fator de inflação de variância (VIF).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE}
+library(MASS)
+library(car)
+library(GGally)
+library(ggfortify)
+library(kableExtra)
+library(corrplot)
+
+variaveis_continuas_modelo <- c('Age', 'Symptom.Severity..1.10.', 'Stress.Level..1.10.', 'Treatment.Duration..weeks.', 'Physical.Activity..hrs.week.', 'Mood.Score..1.10.', 'Sleep.Quality..1.10.')
+
+ggpairs(dados_filtrados, columns = variaveis_continuas_modelo)
+
+correlacao = cor(dados_filtrados[, variaveis_continuas_modelo])
+corrplot(correlacao)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, include=TRUE}
+vif_data = vif(model)
+
+kable(vif_data, align = "c", caption = "VIF")
+```
+
+Assim, percebemos que parece não haver multicolinearidade entre as covariáveis, podendo-se ver isso através do corplot que nos mostra as correlações. Também percebemos pelo VIF que a variância dos estimadores não está sendo inflada pela aparição das outras covariáveis, pois os valores resultaram entre 1 e 2.
+Portanto, com os índicios acima podemos concluir que não há presença de multicolinearidade entre as variáveis preditoras.
+
+
+# Análise de Resíduos
+
+## Normalidade
+
+Para avaliarmos a normalidade, utilizaremos o histograma, o qqplot e alguns testes de normalidade como seguem.
+
+```{r}
+ggplot(mapping = aes(x = model$residuals)) + geom_histogram() + xlab("Residuals") + ylab(" ")
+
+autoplot(model, which = 2, label.size = 3)
+
+library(kableExtra)
+library(nortest)
+norm.test.stat = c(shapiro.test(model$residuals)$statistic, 
+                   ks.test(model$residuals, "pnorm")$statistic, 
+                   ad.test(model$residuals)$statistic, 
+                   cvm.test(model$residuals)$statistic)
+
+norm.test.pvalue = c(shapiro.test(model$residuals)$p.value, 
+                   ks.test(model$residuals, "pnorm")$p.value, 
+                   ad.test(model$residuals)$p.value, 
+                   cvm.test(model$residuals)$p.value)
+
+norm.test = cbind(norm.test.stat, norm.test.pvalue)
+
+rownames(norm.test) = c("Shapiro-Wilk", "Kolmogorov-Smirnov", 
+                        "Anderson-Darling", "Cramer-Von-Mises")
+colnames(norm.test) = c("Statistic", "P.value")
+
+kable(norm.test, caption = "Testes de normalidade")
+```
+
+Primeiramente, percebemos através do histograma um comportamento não normal, onde os valores da distribuição se alternam, a causa da esquerda parece mais pesada e a cauda da direita se estendendo, sendo, portanto, mais longa. Pelo qqplot percebemos uma tendência dos dados de se afastarem da reta nas pontas do gráfico mesmo que os dados estejam concentrados de forma a seguir a reta no centro. Já os testes de normalidade rejeitam a normalidade, pois seus p-valores foram muito pequenos. Sendo assim, podemos concluir com as evidências acima que os resíduos não são normalmente distribuídos.
+
+
+## Homoscedasticidade:
+
+Agora, para avaliarmos a homoscedasticidade, utilizaremos o gráfico dos Resíduo $\times$ Valores ajustados e o teste de homocedasticidade de Breusch-Pagan.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width = 8, fig.height = 3}
+autoplot(model, which = 1, label.size = 3)
+
+library(lmtest)
+homo.test = cbind(bptest(model, studentize = FALSE)$statistic, 
+                  bptest(model, studentize = FALSE)$p.value)
+
+rownames(homo.test) = c("Breusch-Pagan")
+colnames(homo.test) = c("Statistic", "P.value")
+
+kable(homo.test, align = "c", caption = "Teste de homocedasticidade")
+
+```
+
+
+Pelo gráfico percebemos que o comportamento dos resíduos não parece ser aleatório, pois parece seguir um padrão parecido com uma curva, o que é um índicio de heteroscedasticidade. Esse comportamento, também pode indicar a ausência de alguma covariável que seja importante para explicar a variável dependente. 
+
+Pelo teste de Breusch-Pagan aceitamos a hipótese nula de homoscedasticidade, com um p-valor de 0.8652.
+Dessa forma, dada as evidências acima, podemos dizer que os resíduos são homoscedásticos.
+
+
+## Pontos Influentes e Outliers
+
+### Outliers
+
+Para identificar se há presença de outliers podemos utilizar os resíduos estudentizados e padronizados.
+
+Resíduos padronizados ajudam a identificar observações que são outliers.
+
+```{r}
+# Calcular resíduos padronizados
+residuos_padronizados <- rstandard(model)
+
+# Identificar observações problemáticas
+outliers <- which(abs(residuos_padronizados) > 1.82)
+outliers
+```
+
+
+```{r}
+autoplot(model, 1:4, label.size = 3)
+```
+
+
+### Pontos de Alavanca
+
+Pontos de alavanca indicam observações com valores incomuns de covariáveis.
+Para avaliar a presença de pontos de alavanca, podemos utilizar o valor $h_{ii}$ associado à matriz de projeção, também o gráfico de resíduos vs leverage.
+
+
+
+```{r}
+# Calcular leverage
+leverage <- hatvalues(model)
+
+# Critério para leverage alto
+n <- nrow(dados %>% filter(Treatment.Progress..1.10.>=9))
+k <- length(coef(model)) - 1
+cutoff_leverage <- 2 * (k + 1) / n 
+cutoff_leverage
+
+
+# Identificar pontos de alavanca
+pontos_alavanca <- which(leverage > cutoff_leverage)
+pontos_alavanca
+length(pontos_alavanca)
+
+hat_valores <- hatvalues(model)
+df <- data.frame(
+  obs = seq_along(hat_valores),
+  hat = hat_valores
+)
+
+limite <- 2 * mean(hat_valores)
+limite
+
+
+ggplot(df, aes(x = obs, y = hat)) +
+  geom_bar(stat = "identity", fill = "darkcyan", alpha = 0.8) +
+  geom_hline(yintercept = limite, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Valores de Alavancagem (Hat Values)",
+       x = "Índice da Observação",
+       y = "Leverage")
+
+ggplot(df, aes(x = obs, y = hat)) +
+  geom_point(size = 3, color = "blue") +
+  geom_hline(yintercept = limite, color = "red", linetype = "dashed") +
+  # Adicionando rótulos condicionalmente
+  geom_text(
+    aes(label = ifelse(hat > limite, obs, "")),  # só mostra obs se hat>limite
+    vjust = -0.5,   # ajusta a posição vertical do texto
+    color = "red"
+  ) +
+  theme_minimal() +
+  labs(
+    title = "Gráfico de Alavancagem (Hat Values) com rótulos de outliers",
+    x = "Índice da Observação",
+    y = "Leverage (Hat Values)"
+  )
+
+```
+Como podemos perceber, considerando esse limite como indicador de alavancagem, a quantidade de observações é muito grande, totalizando 52 observações. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width = 8, fig.height = 3}
+autoplot(modelo, 5, label.size = )
+```
+
+Quando analisamos o gráfico acima, percebemos que há a presença também de pontos de alavanca e estes são as observações 5, 37 e 56.
+
+
+### Pontos Influentes
+
+
+A distância de Cook identifica observações influentes. Entre alguns dos critérios para considerar um ponto influente:
+
+- $D_i>1$
+- $D_i > 4/n$
+
+
+```{r}
+cooks_distance <- cooks.distance(model)
+
+n <- nrow(dados %>% filter(Treatment.Progress..1.10.>=9))
+
+# Identificar observações com distância de Cook > 1
+which(cooks_distance > 1)
+which(cooks_distance > 4/n)
+
+length(which(cooks_distance > 4/n))
+
+```
+Considerando o segundo critério há 3 observações influentes.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width = 8, fig.height = 3}
+autoplot(model, 4, label.size = 3)
+```
+
+Considerando o gráfico acima, há 3 obsrvações influentes, são elas 23, 92 e 148 os pontos influentes.
+
+(medv) com as variáveis lstat (percentual de moradores de baixa renda) e rm (número médio de cômodos por residência)
+
+```{r}
+kable(dados_filtrados[c(23, 92, 48),])
+```
+
+
+# Conclusão
+
+Neste trabalho foram analisados os fatores que influenciam na aderência ao tratamento psicológico, com base em um banco de dados com base em um banco de dados contendo registros de 500 pacientes. Inicialmente, foi realizado um modelo de regressão linear considerando as variáveis idade, diagnóstico e severidade dos sintomas. Contudo, os resultados indicaram uma baixa adequação do modelo, com coeficientes de regressão não significativos e um coeficiente $Rˆ2$ ajustado próximo de zero, sugerindo que essas variáveis isoladas não explicavam de forma satisfatória a variabilidade na aderência.
+
+Para aprimorar o modelo, foi feita uma seleção de novas variáveis preditoras e aplicação de métodos de seleção de modelos como forward e stepwise. Essas abordagens identificaram variáveis adicionais relevantes, incluindo tipo de terapia, duração do tratamento e medicação. Apesar de uma melhora nos valores de  $Rˆ2$ ajustado, o modelo continuou apresentando limitações, como resíduos não normalmente distribuídos. A análise de influências identificou algumas observações problemáticas, sugerindo que fatores externos ou dados extremos podem estar impactando os resultados.
+
+Concluímos que, embora os modelos lineares tenham oferecido insights valiosos, há limitações importantes para prever a aderência ao tratamento psicológico exclusivamente com as variáveis analisadas. Recomenda-se considerar métodos mais robustos, como modelos não lineares ou machine learning, que possam capturar melhor as relações complexas entre as variáveis. Além disso, uma maior atenção à qualidade dos dados e entendimento das variáveis pode ajudar a construir modelos mais eficazes.
